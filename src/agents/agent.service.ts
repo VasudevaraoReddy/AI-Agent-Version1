@@ -498,6 +498,20 @@ export class AgentService {
     this.saveAllConversationsToFile(allConversations);
   }
 
+  private getISTTimestamp(): string {
+    const now = new Date();
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).format(now);
+  }
+
   async processMessage(message: string, userId: string, csp?: string) {
     if (!userId) {
       throw new Error('User ID is required');
@@ -514,7 +528,11 @@ export class AgentService {
         });
       }
       const userConversation = this.conversations.get(userId);
-      userConversation.history.push(['human', message]);
+      userConversation.history.push({
+        role: 'human',
+        content: message,
+        timestamp: this.getISTTimestamp()
+      });
 
       // Generate greeting response using LLM
       const prompt = `You are a professional cloud services assistant. Generate a warm, professional greeting response.
@@ -553,7 +571,11 @@ export class AgentService {
             menu: this.getMenuForCSP(userConversation.csp || 'aws', true)
           }
         };
-        userConversation.history.push(['assistant', responseObj]);
+        userConversation.history.push({
+          role: 'assistant',
+          content: responseObj,
+          timestamp: this.getISTTimestamp()
+        });
         this.saveUserConversation(userId, userConversation);
         return responseObj;
       } catch (e) {
@@ -567,7 +589,11 @@ export class AgentService {
             menu: this.getMenuForCSP(userConversation.csp || 'aws', true)
           }
         };
-        userConversation.history.push(['assistant', fallbackResponse]);
+        userConversation.history.push({
+          role: 'assistant',
+          content: fallbackResponse,
+          timestamp: this.getISTTimestamp()
+        });
         this.saveUserConversation(userId, userConversation);
         return fallbackResponse;
       }
@@ -606,7 +632,11 @@ export class AgentService {
       }
       // Append to conversation history
       const userConversation = this.conversations.get(userId);
-      userConversation.history.push(['human', message]);
+      userConversation.history.push({
+        role: 'human',
+        content: message,
+        timestamp: this.getISTTimestamp()
+      });
       const responseObj = {
         role: 'assistant',
         workflow: 'cspSelection',
@@ -615,7 +645,11 @@ export class AgentService {
           menu: this.getMenuForCSP(selectedCSP || 'aws', true)
         }
       };
-      userConversation.history.push(['assistant', responseObj]);
+      userConversation.history.push({
+        role: 'assistant',
+        content: responseObj,
+        timestamp: this.getISTTimestamp()
+      });
       this.saveUserConversation(userId, userConversation);
       return responseObj;
     }
@@ -629,7 +663,11 @@ export class AgentService {
       this.conversations.get(userId).generalChatMode = true;
       // Append to conversation history
       const userConversation = this.conversations.get(userId);
-      userConversation.history.push(['human', message]);
+      userConversation.history.push({
+        role: 'human',
+        content: message,
+        timestamp: this.getISTTimestamp()
+      });
       const responseObj = {
         role: 'assistant',
         workflow: 'generalChatMode',
@@ -638,7 +676,11 @@ export class AgentService {
           menu: this.getMenuForCSP(userCSP || 'aws', true)
         }
       };
-      userConversation.history.push(['assistant', responseObj]);
+      userConversation.history.push({
+        role: 'assistant',
+        content: responseObj,
+        timestamp: this.getISTTimestamp()
+      });
       this.saveUserConversation(userId, userConversation);
       return responseObj;
     }
@@ -667,7 +709,11 @@ export class AgentService {
     }
 
     const userConversation = this.conversations.get(userId);
-    userConversation.history.push(['human', message]);
+    userConversation.history.push({
+      role: 'human',
+      content: message,
+      timestamp: this.getISTTimestamp()
+    });
 
     // Pass the full conversation history to the cloudState for context-aware responses
     let cloudState: CloudState = {
@@ -693,19 +739,27 @@ export class AgentService {
               message: 'I am designed to assist with cloud-related topics and queries. Please ask a question related to cloud computing, cloud services, or cloud platforms.'
             }
           };
-          userConversation.history.push(['assistant', professionalResponse]);
+          userConversation.history.push({
+            role: 'assistant',
+            content: professionalResponse,
+            timestamp: this.getISTTimestamp()
+          });
           this.saveUserConversation(userId, userConversation);
           return professionalResponse;
         }
       }
-
+      
       const finalResponse = cloudState.finalResponse;
       // Always add menu to the response
       let cspForMenu = cloudState.csp || (typeof csp === 'string' ? csp : undefined);
       if (finalResponse && finalResponse.response) {
         finalResponse.response.menu = this.getMenuForCSP(cspForMenu || 'aws');
       }
-      userConversation.history.push(['assistant', finalResponse]);
+      userConversation.history.push({
+        role: 'assistant',
+        content: finalResponse,
+        timestamp: this.getISTTimestamp()
+      });
       // After updating userConversation.history, persist to file
       this.saveUserConversation(userId, this.conversations.get(userId));
       return finalResponse;
