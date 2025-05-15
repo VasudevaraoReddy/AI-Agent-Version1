@@ -1,0 +1,654 @@
+{
+    "list": [
+        {
+            "id": "virtual-machine-aws",
+            "name": "Virtual Machine",
+            "template": "virtualmachine",
+            "price": 0,
+            "cloud": "aws",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "instanceName",
+                    "fieldName": "Instance Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "amiId",
+                    "fieldName": "AMI ID",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "instanceType",
+                    "fieldName": "Instance Type",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "keyName",
+                    "fieldName": "Key Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "load-balancer-aws",
+            "name": "Load Balancer",
+            "template": "loadbalancer",
+            "price": 0,
+            "cloud": "aws",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "loadBalancerName",
+                    "fieldName": "Load Balancer Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "subnets",
+                    "fieldName": "Subnets",
+                    "fieldValue": "",
+                    "fieldTypeValue": "List",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "securityGroups",
+                    "fieldName": "Security Groups",
+                    "fieldValue": "",
+                    "fieldTypeValue": "List",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "database-aws",
+            "name": "Database",
+            "template": "database",
+            "price": 0,
+            "cloud": "aws",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "dbInstanceIdentifier",
+                    "fieldName": "DB Instance Identifier",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "dbEngine",
+                    "fieldName": "DB Engine",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "instanceClass",
+                    "fieldName": "Instance Class",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "allocatedStorage",
+                    "fieldName": "Allocated Storage",
+                    "fieldValue": "",
+                    "fieldTypeValue": "Number",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "vpc-aws",
+            "name": "VPC",
+            "template": "vpc",
+            "price": 0,
+            "cloud": "aws",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "vpcCidrBlock",
+                    "fieldName": "VPC CIDR Block",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "vpcName",
+                    "fieldName": "VPC Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "virtual-machine-azure",
+            "name": "Virtual Machine",
+            "template": "virtualmachine",
+            "price": 0,
+            "cloud": "azure",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "vmName",
+                    "fieldName": "VM Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "resourceGroup",
+                    "fieldName": "Resource Group",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "location",
+                    "fieldName": "Location",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "vmSize",
+                    "fieldName": "VM Size",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "load-balancer-azure",
+            "name": "Load Balancer",
+            "template": "loadbalancer",
+            "price": 0,
+            "cloud": "azure",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "loadBalancerName",
+                    "fieldName": "Load Balancer Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "resourceGroup",
+                    "fieldName": "Resource Group",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "location",
+                    "fieldName": "Location",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "database-azure",
+            "name": "Database",
+            "template": "database",
+            "price": 0,
+            "cloud": "azure",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "serverName",
+                    "fieldName": "Server Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "databaseName",
+                    "fieldName": "Database Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "resourceGroup",
+                    "fieldName": "Resource Group",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "location",
+                    "fieldName": "Location",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "resource-group-azure",
+            "name": "Resource Group",
+            "template": "resourcegroup",
+            "price": 0,
+            "cloud": "azure",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "resourceGroupName",
+                    "fieldName": "Resource Group Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "location",
+                    "fieldName": "Location",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "virtual-machine-gcp",
+            "name": "Virtual Machine",
+            "template": "virtualmachine",
+            "price": 0,
+            "cloud": "gcp",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "instanceName",
+                    "fieldName": "Instance Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "zone",
+                    "fieldName": "Zone",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "machineType",
+                    "fieldName": "Machine Type",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "imageFamily",
+                    "fieldName": "Image Family",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "load-balancer-gcp",
+            "name": "Load Balancer",
+            "template": "loadbalancer",
+            "price": 0,
+            "cloud": "gcp",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "backendServiceName",
+                    "fieldName": "Backend Service Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "ipAddressName",
+                    "fieldName": "IP Address Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "database-gcp",
+            "name": "Database",
+            "template": "database",
+            "price": 0,
+            "cloud": "gcp",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "instanceName",
+                    "fieldName": "Instance Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "databaseVersion",
+                    "fieldName": "Database Version",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "region",
+                    "fieldName": "Region",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "project-gcp",
+            "name": "Project",
+            "template": "project",
+            "price": 0,
+            "cloud": "gcp",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "projectId",
+                    "fieldName": "Project ID",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "projectName",
+                    "fieldName": "Project Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "virtual-machine-oracle",
+            "name": "Virtual Machine",
+            "template": "virtualmachine",
+            "price": 0,
+            "cloud": "oracle",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "instanceName",
+                    "fieldName": "Instance Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "compartmentId",
+                    "fieldName": "Compartment ID",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "availabilityDomain",
+                    "fieldName": "Availability Domain",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "shape",
+                    "fieldName": "Shape",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "load-balancer-oracle",
+            "name": "Load Balancer",
+            "template": "loadbalancer",
+            "price": 0,
+            "cloud": "oracle",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "compartmentId",
+                    "fieldName": "Compartment ID",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "shape",
+                    "fieldName": "Shape",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "subnetIds",
+                    "fieldName": "Subnet IDs",
+                    "fieldValue": "",
+                    "fieldTypeValue": "List",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "database-oracle",
+            "name": "Database",
+            "template": "database",
+            "price": 0,
+            "cloud": "oracle",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "compartmentId",
+                    "fieldName": "Compartment ID",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "dbName",
+                    "fieldName": "DB Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "shape",
+                    "fieldName": "Shape",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        },
+        {
+            "id": "compartment-oracle",
+            "name": "Compartment",
+            "template": "compartment",
+            "price": 0,
+            "cloud": "oracle",
+            "available": true,
+            "requiredFields": [
+                {
+                    "type": "input",
+                    "fieldId": "compartmentName",
+                    "fieldName": "Compartment Name",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                },
+                {
+                    "type": "input",
+                    "fieldId": "description",
+                    "fieldName": "Description",
+                    "fieldValue": "",
+                    "fieldTypeValue": "String",
+                    "dependent": false,
+                    "dependentON": "",
+                    "dependentFOR": ""
+                }
+            ]
+        }
+    ]
+}
