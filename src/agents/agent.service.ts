@@ -6,6 +6,7 @@ import * as path from 'path';
 import * as AWS from 'aws-sdk';
 import * as conversationFs from 'fs';
 import { z } from 'zod';
+import { DeployTool } from './deploy.tool';
 
 interface CloudState {
   conversationHistory: any[];
@@ -41,6 +42,7 @@ export class AgentService {
   private conversations: Map<string, any> = new Map();
   private servicesData: ServicesData | null = null;
   private conversationFilePath = path.join(process.cwd(), 'conversations.json');
+  private deployTool: DeployTool;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -49,6 +51,7 @@ export class AgentService {
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.loadServicesData();
+    this.deployTool = new DeployTool();
 
     // Load all conversations from file into memory
     const allConversations = this.loadAllConversationsFromFile();
@@ -269,6 +272,47 @@ export class AgentService {
     }
   }
 
+  private async generateExampleValues(service: any, csp: string): Promise<any> {
+    const prompt = `Generate example values and explanations for the following cloud service configuration fields.
+    
+    Service: ${service.name}
+    Cloud Provider: ${csp.toUpperCase()}
+    Fields: ${JSON.stringify(service.requiredFields)}
+    
+    Return JSON only:
+    {
+      "fields": [
+        {
+          "fieldId": "string",
+          "exampleValue": "string",
+          "explanation": "string explaining the example value and best practices"
+        }
+      ]
+    }
+
+    Guidelines:
+    - Provide realistic, production-ready example values
+    - Follow cloud provider best practices
+    - Consider security and naming conventions
+    - Values should be valid for the specified field types
+    - Include brief explanation of why these values are good examples
+    - Keep explanations concise but informative`;
+
+    const model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    const result = await model.generateContent([prompt]);
+    const response = result.response.text();
+
+    try {
+      const cleanedResponse = this.cleanJsonResponse(response);
+      return JSON.parse(cleanedResponse);
+    } catch (e) {
+      console.error("Error parsing example values:", e);
+      return {
+        fields: []
+      };
+    }
+  }
+
   private async processAction(cloudState: CloudState): Promise<CloudState> {
     const { action, analysis } = cloudState;
 
@@ -281,7 +325,20 @@ export class AgentService {
     if (analysis && analysis.type === 'action') {
       const matchingService = this.findMatchingService(analysis);
       if (matchingService) {
-        // Return the service configuration with required fields
+        // Generate example values for the service
+        const exampleValues = await this.generateExampleValues(matchingService, analysis.csp || 'aws');
+        
+        // Enhance required fields with examples
+        const enhancedFields = matchingService.requiredFields.map(field => {
+          const exampleField = exampleValues.fields.find((ef: any) => ef.fieldId === field.fieldId);
+          return {
+            ...field,
+            exampleValue: exampleField?.exampleValue || '',
+            explanation: exampleField?.explanation || ''
+          };
+        });
+
+        // Return the service configuration with enhanced fields
         const response = {
           status: "service_found",
           message: `Found service configuration for ${matchingService.name} on ${matchingService.cloud.toUpperCase()}`,
@@ -289,7 +346,7 @@ export class AgentService {
             name: matchingService.name,
             description: matchingService.description,
             cloud: matchingService.cloud,
-            requiredFields: matchingService.requiredFields
+            requiredFields: enhancedFields
           },
           details: analysis.details
         };
@@ -302,7 +359,10 @@ export class AgentService {
             workflow: "serviceConfiguration",
             response: {
               message: `To provision ${matchingService.name} on ${matchingService.cloud.toUpperCase()}, please provide the following information:`,
-              service: matchingService,
+              service: {
+                ...matchingService,
+                requiredFields: enhancedFields
+              },
               details: analysis.details
             }
           }
@@ -512,9 +572,73 @@ export class AgentService {
     }).format(now);
   }
 
-  async processMessage(message: string, userId: string, csp?: string) {
+  async processMessage(message: string, userId: string, csp?: string, fields?: any) {
     if (!userId) {
       throw new Error('User ID is required');
+    }
+
+    // --- Handle Deployment Requests ---
+    if (fields && fields.formData && fields.template) {
+      const userConversation = this.conversations.get(userId);
+      if (!userConversation) {
+        throw new Error('No active conversation found for user');
+      }
+
+      // Get the last service configuration from conversation history
+      const lastServiceConfig = userConversation.history
+        .filter((msg: any) => 
+          msg.role === 'assistant' && 
+          msg.content?.workflow === 'serviceConfiguration'
+        )
+        .pop();
+
+      if (!lastServiceConfig) {
+        throw new Error('No service configuration found in conversation history');
+      }
+
+      const serviceName = lastServiceConfig.content.response.service.name;
+      const currentCSP = csp || userConversation.csp;
+
+      // Add deployment request to conversation history
+      userConversation.history.push({
+        role: 'human',
+        content: message,
+        timestamp: this.getISTTimestamp()
+      });
+
+      // Call deployment tool
+      const deploymentResult = await this.deployTool.deployService({
+        serviceName,
+        csp: currentCSP,
+        userId,
+        formData: fields.formData,
+        template: fields.template
+      });
+
+      // Create response object
+      const responseObj = {
+        role: 'assistant',
+        workflow: 'deployment',
+        response: {
+          message: deploymentResult.success 
+            ? `Deployment of ${serviceName} has been initiated successfully.`
+            : `Failed to deploy ${serviceName}: ${deploymentResult.message}`,
+          details: deploymentResult.details,
+          deploymentId: deploymentResult.deploymentId,
+          menu: this.getMenuForCSP(currentCSP, true)
+        }
+      };
+
+      // Add response to conversation history
+      userConversation.history.push({
+        role: 'assistant',
+        content: responseObj,
+        timestamp: this.getISTTimestamp()
+      });
+
+      // Save updated conversation
+      this.saveUserConversation(userId, userConversation);
+      return responseObj;
     }
 
     // --- Handle Greetings ---
