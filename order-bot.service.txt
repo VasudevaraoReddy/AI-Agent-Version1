@@ -1,0 +1,886 @@
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
+import { ChatOpenAI } from '@langchain/openai';
+import { ConversationService } from '../conversation/conversation.service';
+import { UtilsService } from 'src/utils/utils.service';
+import { addToCart, removeFromCart, getCartByUserId, createOrder, getMenuItemsByRestaurantId } from 'src/utils/api';
+
+
+@Injectable()
+export class OrderBotService implements OnModuleInit {
+  private workflow: any;
+  private readonly GEO_MENU_COLLECTION_NAME: string;
+  private readonly GEO_RESTAURANT_COLLECTION_NAME: string;
+  private readonly OPENAI_API_KEY: string;
+
+  constructor(private readonly conversationService: ConversationService, private readonly utilsService: UtilsService) {
+    this.GEO_MENU_COLLECTION_NAME = process.env.GEO_MENU_COLLECTION_NAME;
+    this.GEO_RESTAURANT_COLLECTION_NAME = process.env.GEO_RESTAURANT_COLLECTION_NAME;
+    this.OPENAI_API_KEY = process.env.OPENAI_API_KEY
+  }
+
+  async onModuleInit() {
+    this.setupWorkflow();
+  }
+
+
+  private setupWorkflow() {
+    // Define state
+    const GraphState = Annotation.Root({
+      messages: Annotation<BaseMessage[]>({
+        reducer: (x, y) => x.concat(y),
+        default: () => [],
+      }),
+      orderState: Annotation<OrderState>({
+        value: (x, y) => ({ ...x, ...y }),
+        default: () => ({
+          cartItems: [],
+          totalPrice: 0,
+          conversationHistory: [],
+          menuItems: [],
+          needsMenuData: false,
+          needsRestaurantData: false,
+          query: ''
+        }),
+      })
+    });
+
+    // Analyze user input to determine if menu data is needed
+    const analyzeInput = async (state: any): Promise<Partial<any>> => {
+      const { messages, orderState } = state;
+      const userInput = messages[messages.length - 1].content;
+
+      const prompt = `You analyze food ordering queries to extract key information.
+       
+      Return JSON only:
+      {
+        "category": "category-if-detected",  // Food category mentioned (e.g., breakfast, biryani, dessert)
+        "itemName": "specific-item-if-mentioned", // Specific food item mentioned (e.g., chicken biryani, pani puri)
+        "keywords": ["keyword1", "keyword2"] // Important keywords for search (max 3),
+      }
+
+      RULES FOR CATEGORIES, ITEMS AND KEYWORDS:
+      - If a food category is clearly mentioned (breakfast, lunch, dinner, snacks, biryani, etc.), include it
+      - If a specific menu item is mentioned by name, include it exactly as mentioned
+      - Extract 1-3 most important food-related keywords that would help in search
+      - Leave fields blank ("") if not present in the query
+
+      EXAMPLES:
+
+      Query: "Show me the breakfast options"
+      {
+        "category": "breakfast",
+        "itemName": "",
+        "keywords": ["breakfast", "options", "menu"],
+      }
+
+      Query: "I want to order chicken biryani"
+      {
+        "category": "biryani",
+        "itemName": "chicken biryani",
+        "keywords": ["chicken", "biryani"],
+      }
+
+      Query: "Yes, that looks good"
+      {
+        "category": "",
+        "itemName": "",
+        "keywords": [],
+      }
+
+      Query: "Add one more pani puri to my order"
+      {
+        "category": "snacks",
+        "itemName": "pani puri",
+        "keywords": ["pani puri", "add"],
+      }
+
+      Query: "Confirm my order"
+      {
+        "category": "",
+        "itemName": "",
+        "keywords": [],
+      }
+
+      Query: "Do you have any desserts?"
+      {
+        "category": "desserts",
+        "itemName": "",
+        "keywords": ["desserts", "sweet"],
+      }
+
+      Query: "I want to order a burger from McDonald's"
+      {
+        "category": "burger",
+        "itemName": "burger",
+        "keywords": ["burger", "mcdonalds"],
+      }
+
+      Analyze the following query and extract relevant information.
+      `;
+
+
+      const newLLM = new ChatOpenAI({
+        model: 'gpt-4o',
+        apiKey: this.OPENAI_API_KEY,
+        modelKwargs: {
+          response_format: { type: "json_object" }
+        }
+      });
+
+      const messagePayload = [
+        new SystemMessage(prompt),
+        new HumanMessage(String(userInput))
+      ]
+      console.log("messagePayload for analyzeInput", JSON.stringify(messagePayload));
+      const result = await newLLM.invoke(messagePayload);
+
+      try {
+        const parsedResult = JSON.parse(String(result.content));
+        const category = parsedResult.category || '';
+        const itemName = parsedResult.itemName || '';
+        const keywords = parsedResult.keywords || [];
+
+
+        return {
+          orderState: {
+            ...orderState,
+            query: userInput,
+            searchCategory: category,
+            searchItemName: itemName,
+            searchKeywords: keywords,
+          }
+        };
+      } catch (e) {
+        console.error("Error parsing analyzeInput result:", e);
+        return {
+          orderState: {
+            ...orderState,
+            query: userInput,
+            searchCategory: '',
+            searchItemName: '',
+            searchKeywords: [],
+          }
+        };
+      }
+    };
+
+ 
+
+    // Generate unified response that determines the action and generates response
+    const findAction = async (state: {
+      orderState: OrderState,
+      messages: BaseMessage[]
+    }): Promise<Partial<any>> => {
+      const { orderState, messages } = state;
+      const userInput = messages[messages.length - 1].content;
+      console.log("Generating findAction response");
+
+      const availableMenuItems = orderState.menuItems || [];
+      // Create a comprehensive unified prompt
+      const prompt = `You're a food ordering assistant that helps users order food and answer general questions about food items, dishes, and restaurants. 
+      You need to determine the appropriate action for this conversation step.
+
+      CURRENT CONVERSATION STATE:
+      - Available menu items: ${availableMenuItems?.length > 0 ?
+          JSON.stringify(availableMenuItems?.map((item: MenuItem) => ({
+            id: item?.id,
+            name: item.name,
+            description: item?.description,
+            restaurantName: item?.restaurant?.restaurantName,
+            restaurantArea: item?.restaurant?.restaurantArea
+          }))) : 'No menu items available'}
+      - Available restaurants: ${orderState?.restaurants && orderState?.restaurants?.length > 0 ?
+          JSON.stringify(orderState?.restaurants) : 'No restaurants available'}
+
+      AVAILABLE ACTIONS:
+
+       📋 Menu Navigation Actions:
+      - "VIEW_MENU" - User wants to see the menu
+      - "VIEW_RESTAURANT" - User wants to see the list of restaurants in their area
+      - "VIEW_MENU_BY_RESTAURANT" - User wants to see the menu of a specific restaurant
+      - "ADD_ITEM" - User selects or adds a menu item to cart
+      - "SET_QUANTITY" - User sets how many of the item they want
+      - "ADD_ADDONS" - User adds extras to an item
+      - "REMOVE_ITEM" - User wants to remove an item from their cart (multiple items can be removed at once)
+
+
+        📦 Order Management Actions:
+      - "VIEW_CART" - Display current cart contents or order summary
+      - "PROCESS_ORDER" - Final confirmation of the order
+      - "CANCEL_ORDER" - Cancel the current order
+      - "GENERAL_QUERY" - General conversation or questions about food, dishes, or restaurants not related to a specific action
+
+      Rules:
+      - Segregate the action properly and return the response in the correct format
+      - Return action always in the response from the available actions list [It shoudn't be empty]
+      - For restaurant-related actions (like VIEW_RESTAURANT), only include restaurant IDs (if you ever add a restaurants field) when the action is VIEW_RESTAURANT. Otherwise, leave it empty.
+
+      Return JSON only in this format:
+      {
+        "action": {
+          "type": "CURRENT_ACTION_TYPE", // CURRENT_ACTION_TYPE is one of the actions defined above
+          "payload": {
+            "itemIds": ["item-id-1", "item-id-2"], // item-id is the ID of the menu item that the user wants to add to their cart
+            "quantity": number, // quantity is the quantity of the item that the user wants to add to their cart
+            "addonIds": ["addon-id-1", "addon-id-2"], // addon-ids is the IDs of the addons that the user wants to add to their cart
+            "category": "category" // category is the category of the item that the user wants to add to their cart
+            "variationId": "variation-id" // variation-id is the ID of the variation of the item that the user wants to add to their cart (Don't select the first variation, only select if user has specified a variation)
+            "restaurantId": "restaurant-id" // restaurant-id is the ID of the restaurant that the user wants to add to their cart
+            "restaurantName": "restaurant-name" // restaurant-name is the name of the restaurant that the user wants to add to their cart
+          }
+        },
+      }
+
+      Example:
+      // Query: "add one more pani puri to my order"
+      {
+        "action": {
+          "type": "ADD_ITEM",
+          "payload": {
+            "itemIds": ["item-id-1"],
+            "quantity": 1,
+            "addonIds": ["addon-id-1", "addon-id-2"],
+            "category": "category",
+            "variationId": "variation-id",
+            "restaurantId": "restaurant-id",
+            "restaurantName": "restaurant-name"
+          }
+        }
+      }
+
+      // Query: "remove one more pani puri from my order"
+      {
+        "action": {
+          "type": "REMOVE_ITEM",
+          "payload": {
+            "itemIds": ["item-id-1", "item-id-2"],
+            "quantity": 1,
+            "addonIds": ["addon-id-1", "addon-id-2"],
+            "category": "category",
+            "variationId": "variation-id",
+            "restaurantId": "restaurant-id",
+            "restaurantName": "restaurant-name"
+          }
+        }
+      }
+      
+      // Query: "I want to order a burger from McDonald's"
+      {
+        "action": {
+          "type": "VIEW_MENU_BY_RESTAURANT",
+          "payload": {
+            "restaurantId": "restaurant-id",
+            "restaurantName": "restaurant-name"
+          }
+        }
+      }
+
+      // Query: "I want something fresh"
+      {
+        "action": {
+          "type": "VIEW_MENU",
+          "payload": {}
+        }
+      }
+      
+
+
+      `;
+
+      const messagePayload = [
+        new SystemMessage(prompt),
+        ...this.utilsService.generateConversationHistory(orderState?.conversationHistory),
+        new HumanMessage(String(userInput))
+      ];
+
+      const newLLM = new ChatOpenAI({
+        model: 'gpt-4o',
+        apiKey: this.OPENAI_API_KEY,
+        temperature: 0.2,
+        modelKwargs: {
+          response_format: { type: "json_object" }
+        }
+      });
+
+      const response = await newLLM.invoke(messagePayload);
+      try {
+        const parsedResponse = JSON.parse(String(response?.content));
+        console.log("parsedResponse", parsedResponse);
+        // Save the conversation history
+        const stringifiedResponse = JSON.stringify({
+          action: parsedResponse?.action
+        });
+
+        return {
+          orderState: {
+            ...orderState,
+            action: parsedResponse?.action,
+          },
+          messages: [new AIMessage(stringifiedResponse)]
+        };
+      } catch (e) {
+        console.error("Error parsing findAction response:", e);
+        return {
+          messages: [new AIMessage("I'm sorry, I couldn't process your request.")],
+          orderState
+        };
+      }
+    };
+
+    // Helper method to process actions
+    const processAction = async (state: any) => {
+      const { orderState, messages } = state;
+      const actionType = orderState?.action?.type;
+      const actionPayload = orderState?.action?.payload;
+      const query = orderState?.query;
+      const userId = orderState?.userId;
+      console.log("Processing action:", actionType);
+      let customAiMessageContent = "";
+      let updatedState = { ...orderState };
+      if (actionType === 'ADD_ITEM') {
+        const { itemIds, variationId, quantity = 1 } = actionPayload || {};
+        for (const itemId of itemIds) {
+        const menuItem = await this.utilsService.findMenuItem(itemId);
+        const finalItemId = variationId || itemId;
+        if (menuItem) {
+          if (menuItem?.variants && menuItem?.variants?.length > 1 && (!finalItemId)) {
+            customAiMessageContent = `For ${menuItem?.name}, please select a variation: ${menuItem?.variants?.map(v => `${v?.name} (₹${v?.price})`).join(' or ')}`;
+            updatedState.pendingItemId = itemId;
+          } else {
+            const cartResponse = await addToCart({ itemId: finalItemId, quantity, userId });
+            if (cartResponse) {
+              const cart = await getCartByUserId({ userId });
+              updatedState = {
+                ...updatedState,
+                cartItems: cart?.items || [],
+                totalPrice: (cart?.items || []).reduce((sum, i) => sum + (i?.price * i?.quantity), 0)
+              };
+              updatedState["event"] = "cartUpdated";
+            }
+            else {
+              updatedState["event"] = "cartFailed";
+              customAiMessageContent = "Sorry, we couldn't add the item to your cart, please try again";
+            }
+          }
+        }
+        else {
+          updatedState["event"] = "cartFailed";
+          customAiMessageContent = "Sorry, we couldn't add the item to your cart, please try again";
+          }
+        }
+      } else if (actionType === 'REMOVE_ITEM') {
+        const { itemIds } = actionPayload || {};
+        for (const itemId of itemIds) {
+        if (itemId) {
+          const cartResponse = await removeFromCart({ itemId, userId });
+          if (cartResponse) {
+            const cart = await getCartByUserId({ userId });
+            updatedState = {
+              ...updatedState,
+              cartItems: cart?.items || [],
+              totalPrice: (cart?.items || []).reduce((sum, i) => sum + (i?.price * i?.quantity), 0)
+            };
+            updatedState["event"] = "cartUpdated";
+          }
+          else {
+            updatedState["event"] = "cartFailed";
+            customAiMessageContent = "Sorry, we couldn't remove the item from your cart, please try again";
+          }
+        }
+        else {
+          updatedState["event"] = "cartFailed";
+        }
+        }
+      } else if (actionType === 'SET_QUANTITY') {
+        const { itemIds, quantity } = actionPayload || {};
+        for (const itemId of itemIds) {
+        if (itemId && quantity) {
+          const cartResponse = await addToCart({ itemId, quantity, userId });
+          if (cartResponse) {
+            const cart = await getCartByUserId({ userId });
+            updatedState = {
+              ...updatedState,
+              cartItems: cart?.items || [],
+              totalPrice: (cart?.items || []).reduce((sum, i) => sum + (i?.price * i?.quantity), 0)
+            };
+            updatedState["event"] = "cartUpdated";
+          }
+          else {
+            updatedState["event"] = "cartFailed";
+            customAiMessageContent = "Sorry, we couldn't update the quantity of the item in your cart, please try again";
+          }
+        }
+        else {
+          updatedState["event"] = "cartFailed";
+          customAiMessageContent = "Sorry, we couldn't update the quantity of the item in your cart, please try again";
+        }
+        }
+      } else if (actionType === 'PROCESS_ORDER') {
+        const orderPlaced = await createOrder({
+          deliveryLatitude: orderState?.userLocation?.lat,
+          deliveryLongitude: orderState?.userLocation?.lon,
+          deliveryAddress: orderState?.deliveryAddress,
+          userId: orderState?.userId
+        });
+        if (orderPlaced) {
+          updatedState = {
+            ...updatedState,
+            confirmed: true,
+            cartItems: [],
+            totalPrice: 0,
+            pendingItemId: undefined
+          };
+          updatedState["event"] = "orderPlaced";
+          // Clear the conversation history in local 
+          await this.conversationService.clearOrderState(orderState?.sessionId);
+          customAiMessageContent = "Your order has been placed successfully,Thank you for choosing us";
+        } else {
+          updatedState["event"] = "orderFailed";
+          customAiMessageContent = "Sorry, we couldn't process your order, please try again";
+        }
+
+      } else if (actionType === 'CANCEL_ORDER') {
+        updatedState = {
+          ...updatedState,
+          cartItems: [],
+          totalPrice: 0,
+          confirmed: false,
+          pendingItemId: undefined
+        };
+        customAiMessageContent = "Your order has been cancelled.";
+      } else if (actionType === 'VIEW_MENU_BY_RESTAURANT') {
+        const { restaurantId, restaurantName } = actionPayload || {};
+        // also update the menu items in the last ai message content
+        const lastAiMessage = messages[messages.length - 1];
+        if (restaurantId) {
+          const menuItems = await getMenuItemsByRestaurantId({ restaurantId, page: 1, limit: 40 });
+          console.log("menuItems", menuItems.data.length);
+          const menuIds = menuItems?.data?.map(item => item?.id);
+          console.log("menuIds", menuIds);
+          const formattedMenuItems = await this.utilsService.getFormattedMenuItemsByIds(menuIds);
+          if (formattedMenuItems?.length > 0) {
+            updatedState.menuItems = formattedMenuItems;
+            const updatePayload = {
+              menuItems: formattedMenuItems.map(item => item?.id),
+            };
+            const updatedAiMessages = await this.utilsService.updateLastAiMessage(messages, updatePayload);
+            if (updatedAiMessages) {
+              messages[messages.length - 1] = lastAiMessage;
+            }
+            customAiMessageContent = "Here is the available menu for you to choose from " + restaurantName;
+          } else {
+            updatedState["event"] = "menuEmpty";
+            updatedState.menuItems = [];
+            customAiMessageContent = "No menu items found, please try again for " + restaurantName;
+          }
+          updatedState.restaurants = []
+        } else {
+          // perform a vector search for the restaurant name
+          const menuItems = await this.utilsService.searchMenuItemsByLocation(query, orderState.userLocation, this.GEO_MENU_COLLECTION_NAME);
+          const menuItemsIds = menuItems.map((item: MenuItem) => item.id);
+          const formattedMenuItems = await this.utilsService.getFormattedMenuItemsByIds(menuItemsIds);
+          if (formattedMenuItems?.length > 0) {
+            updatedState.menuItems = formattedMenuItems;
+          } else {
+            updatedState["event"] = "menuEmpty";
+            updatedState.menuItems = [];
+            customAiMessageContent = "No menu items found, please try again for " + restaurantName;
+          }
+          updatedState.restaurants = []
+        }
+      } else if (actionType === 'VIEW_CART') {
+        // show the cart items
+        const cart = await getCartByUserId({ userId });
+        if (cart?.items?.length > 0) {
+          updatedState.cartItems = cart?.items || [];
+          updatedState.totalPrice = (cart?.items || []).reduce((sum, i) => sum + (i?.price * i?.quantity), 0);
+        } else {
+          updatedState["event"] = "cartEmpty";
+          updatedState.cartItems = [];
+          updatedState.totalPrice = 0;
+          customAiMessageContent = "Your cart is empty, add some items to your cart to continue";
+        }
+      } else if (actionType === 'VIEW_MENU') {
+        const menuItems = await this.utilsService.searchMenuItemsByLocation(query, orderState.userLocation, this.GEO_MENU_COLLECTION_NAME);
+        const menuItemsIds = menuItems.map((item: MenuItem) => item.id);
+        const formattedMenuItems = await this.utilsService.getFormattedMenuItemsByIds(menuItemsIds);
+        if (formattedMenuItems?.length > 0) {
+          updatedState.menuItems = formattedMenuItems;
+        } else {
+          updatedState["event"] = "menuEmpty";
+          updatedState.menuItems = [];
+          customAiMessageContent = "No menu items found, please try again";
+        }
+      } else if (actionType === 'VIEW_RESTAURANT') {
+        const restaurants = await this.utilsService.searchRestaurantsByLocation(query, orderState.userLocation, this.GEO_RESTAURANT_COLLECTION_NAME);
+        updatedState.restaurants = restaurants;
+      } 
+
+      // Only set customAiMessageContent if it is not empty
+      if (customAiMessageContent) {
+        updatedState.customAiMessageContent = customAiMessageContent;
+      } else {
+        delete updatedState.customAiMessageContent;
+        delete orderState.customAiMessageContent;
+      }
+
+      // Make menu items or restaurants empty if action is not view menu or view restaurant or view menu by restaurant
+      if (actionType !== 'VIEW_MENU' && actionType !== 'VIEW_RESTAURANT' && actionType !== 'VIEW_MENU_BY_RESTAURANT') {
+        updatedState.menuItems = [];
+        updatedState.restaurants = [];
+      }
+
+      return {
+        orderState: updatedState,
+        messages: messages
+      };
+    }
+
+    // Generate unified response that determines the action and generates response
+    const generateUnifiedResponse = async (state: {
+      orderState: OrderState,
+      messages: BaseMessage[]
+    }): Promise<Partial<any>> => {
+      const { orderState, messages } = state;
+      const userInput = orderState?.query;
+      console.log("Generating unified response");
+      // here from order state if we have customAiMessageContent, then we should use it as the answer
+      // Update the conversation history with the custom ai message content
+      const customAiMessageContent = orderState["customAiMessageContent"];
+      console.log("customAiMessageContent", customAiMessageContent);
+      if (customAiMessageContent && customAiMessageContent !== "") {
+        console.log("Returning custom ai message content");
+        // Save the conversation history
+        const stringifiedResponse = JSON.stringify({
+          answer: customAiMessageContent,
+          menuItems: orderState?.menuItems && orderState?.menuItems.map(item => ({
+            id: item?.id,
+            name: item?.name,
+            description: item?.description,
+            restaurantName: item?.restaurant?.restaurantName,
+            restaurantArea: item?.restaurant?.restaurantArea
+          })),
+          restaurants: orderState?.restaurants && orderState?.restaurants?.length > 0 && orderState?.restaurants.map(restaurant => ({
+            id: restaurant?.id,
+            name: restaurant?.name,
+          })),
+          cartItems: orderState?.cartItems?.length > 0 ? orderState?.cartItems?.map(item => ({
+            id: item?.id,
+            name: item?.name,
+            variation: item?.variation?.name,
+            quantity: item?.quantity,
+            price: item?.totalPrice
+          })) : [],
+        });
+        const updatedConversationHistory = [
+          ...orderState?.conversationHistory,
+          new HumanMessage(String(userInput)),
+          new AIMessage({
+            content: stringifiedResponse
+          })
+        ];
+        return {
+          orderState: {
+            ...orderState,
+            action: orderState?.action,
+            menuItems: orderState?.menuItems,
+            restaurants: orderState?.restaurants,
+            conversationHistory: updatedConversationHistory,
+            answer: customAiMessageContent,
+            restaurantId: orderState?.action?.payload?.restaurantId,
+            restaurantName: orderState?.action?.payload?.restaurantName
+          },
+          messages: [new AIMessage(stringifiedResponse)]
+        };
+      }
+
+      console.log("Generating from scratch response");
+
+      const availableMenuItems = orderState.menuItems || [];
+      const prompt = `You're a food ordering assistant that helps users order food and answer general questions about food items, dishes, and restaurants. 
+      You need to generate a helpful response.
+
+      CURRENT CONVERSATION STATE:
+      - Cart items: ${orderState?.cartItems?.length > 0 ? JSON.stringify(orderState?.cartItems?.map((item) => ({
+        name: item?.name,
+        variation: item?.variation?.name,
+        quantity: item?.quantity,
+        price: item?.totalPrice,
+        id: item?.id
+      }))) : 'No items in cart'}
+      - Total price: ${orderState?.totalPrice}
+      - Available menu items: ${availableMenuItems?.length > 0 ?
+          JSON.stringify(availableMenuItems?.map((item: MenuItem) => ({
+            id: item?.id,
+            name: item.name,
+            description: item?.description,
+            restaurantName: item?.restaurant?.restaurantName,
+            restaurantArea: item?.restaurant?.restaurantArea,
+            hasVariations: item?.variants && item?.variants?.length > 1,
+            variations: item?.variants && item?.variants?.map(v => ({
+              id: v?.id,
+              name: v?.name,
+              defaultQuantity: 1,
+              size: '',
+              price: v?.price,
+              maxQuantity: 10
+            }))
+          }))) : 'No menu items available'}
+      - Available restaurants: ${orderState?.restaurants && orderState?.restaurants?.length > 0 ?
+          JSON.stringify(orderState?.restaurants) : 'No restaurants available'}
+      - Action: ${orderState?.action?.type}
+
+
+      Rules:
+      - Answer the user's question in a conversational manner and follow the conversation history
+      - Never hallucinate. If you don't know the answer, say you don't know in polite manner
+      - If available menu items are not available, say that the menu is not available
+      - Keep the response short and concise
+      - For general questions about food, dishes, or restaurants (e.g., 'What is idli?', 'Tell me about biryani'), always answer informatively if possible. Use the GENERAL_QUERY action type for these cases. Only say you don't know if you truly have no information.
+      - The 'answer' field in your response should be formatted using Markdown (md) syntax. Use code blocks, bold, italics, bullet points, and other Markdown features as appropriate to make the response clear, readable, and visually appealing. Highlight important information and structure the answer for easy reading.
+      - Never return image urls in the answer field.
+
+      Return JSON only in this format:
+      {
+        "answer": "Your Complete helpful, conversational response to the user",
+      }
+      
+      Example:
+      {
+        "answer": "Here is the menu for you to choose from"
+      }
+
+      {
+        "answer": "Here is the menu for you to choose from McDonald's"
+      }
+
+      {
+        "answer": "Sure! Here are some sweet options available on the menu: Gulab Jamun, Rasmalai, and Rice Kheer. Let me know if you'd like to add any of these to your cart."
+      }
+
+      {
+        "answer": "Idli is a traditional South Indian breakfast dish made from fermented rice and lentil batter, steamed into soft cakes.",
+      }
+
+      {
+        "answer": "Here are the restaurants in your area"
+      }
+
+      {
+        "answer": "Your order has been placed successfully,Thank you for choosing us"
+      }
+
+      {
+        "answer": "Your order has been cancelled"
+      }
+
+      {
+        "answer": "Added 1 item-id-1 to your cart , want to show cart ?"
+      }
+
+      {
+        "answer": "Here is the menu for you to choose from"
+      }
+
+      {
+        "answer": "Here is the menu for you to choose from McDonald's"
+      }
+
+      {
+        "answer": "Removed item-id-1 from your cart, want to show cart ?"
+      }
+
+      {
+        "answer": "Here is the menu for you to choose from"
+      }
+
+      {
+        "answer": "Your order has been placed successfully,Thank you for choosing us"
+      }
+
+      {
+        "answer": "Your order has been cancelled"
+      }
+      `;
+
+      const messagePayload = [
+        new SystemMessage(prompt),
+        ...this.utilsService.generateConversationHistory(orderState?.conversationHistory),
+        new HumanMessage(String(userInput))
+      ];
+
+      const newLLM = new ChatOpenAI({
+        model: 'gpt-4o',
+        apiKey: this.OPENAI_API_KEY,
+        temperature: 0.2,
+        modelKwargs: {
+          response_format: { type: "json_object" }
+        }
+      });
+
+      console.log("Sending payload to LLM for unified response");
+      const response = await newLLM.invoke(messagePayload);
+
+      try {
+        const parsedResponse = JSON.parse(String(response?.content));
+        console.log("parsedResponse", parsedResponse);
+
+        // Save the conversation history
+        const stringifiedResponse = JSON.stringify({
+          answer: parsedResponse?.answer,
+          menuItems: orderState?.menuItems && orderState?.menuItems.map(item => ({
+            id: item?.id,
+            name: item?.name,
+            description: item?.description,
+            restaurantName: item?.restaurant?.restaurantName,
+            restaurantArea: item?.restaurant?.restaurantArea
+          })),
+          cartItems: orderState?.cartItems?.length > 0 ? orderState?.cartItems?.map(item => ({
+            id: item?.id,
+            name: item?.name,
+            variation: item?.variation?.name,
+            quantity: item?.quantity,
+            price: item?.totalPrice
+          })) : [],
+        });
+        const updatedConversationHistory = [
+          ...orderState?.conversationHistory,
+          new HumanMessage(String(userInput)),
+          new AIMessage({
+            content: stringifiedResponse
+          })
+        ];
+
+        return {
+          orderState: {
+            ...orderState,
+            action: orderState?.action,
+            menuItems: orderState?.menuItems,
+            restaurants: orderState?.restaurants,
+            conversationHistory: updatedConversationHistory,
+            answer: parsedResponse?.answer,
+            restaurantId: orderState?.action?.payload?.restaurantId,
+            restaurantName: orderState?.action?.payload?.restaurantName
+          },
+          messages: [new AIMessage(stringifiedResponse)]
+        };
+      } catch (e) {
+        console.error("Error parsing unified response:", e);
+        return {
+          messages: [new AIMessage("I'm sorry, I couldn't process your request.")],
+          orderState
+        };
+      }
+    };
+
+
+
+
+
+    // Define the simplified workflow
+    const workflow = new StateGraph(GraphState)
+      .addNode("analyzeInput", analyzeInput)
+      .addNode("processAction", processAction)
+      .addNode("generateUnifiedResponse", generateUnifiedResponse)
+      .addNode("findAction", findAction)
+
+    // Define the flow
+    workflow.addEdge(START, "analyzeInput");
+    workflow.addEdge("analyzeInput", "findAction");
+    workflow.addEdge("findAction", "processAction");
+    workflow.addEdge("processAction", "generateUnifiedResponse");
+    workflow.addEdge("generateUnifiedResponse", END)
+    this.workflow = workflow.compile();
+  }
+
+  // The previous method remains for backward compatibility
+  async processOrderWithLocation(
+    userInput: string,
+    sessionId: string = 'default',
+    locationData?: {
+      latitude?: number,
+      longitude?: number
+    },
+    userId?: number,
+    deliveryAddress?: string
+  ): Promise<{
+    orderState: OrderState;
+    messages: BaseMessage[];
+    formattedResponse: any;
+  }> {
+    try {
+      console.log(`Processing order for session ${sessionId} with location data:`, locationData);
+
+      if (!userInput) {
+        return {
+          messages: [new AIMessage("Please provide a query to search for food items.")],
+          orderState: await this.conversationService.getOrderState(sessionId),
+          formattedResponse: null
+        };
+      }
+
+      const existingOrderState = await this.conversationService.getOrderState(sessionId);
+
+      // Update location information if provided
+      if (locationData && locationData?.latitude !== undefined && locationData?.longitude !== undefined) {
+        existingOrderState.userLocation = {
+          lat: locationData.latitude,
+          lon: locationData.longitude
+        };
+      }
+
+      if (userId) {
+        existingOrderState.userId = userId;
+        existingOrderState.sessionId = sessionId;
+      }
+
+      if (deliveryAddress) {
+        existingOrderState.deliveryAddress = deliveryAddress;
+      }
+
+      const inputs = {
+        messages: [new HumanMessage(userInput)],
+        orderState: existingOrderState
+      };
+
+      let finalResponse: BaseMessage[] = [];
+      let finalOrderState = inputs.orderState;
+
+      for await (const output of await this.workflow.stream(inputs)) {
+        for (const [key, value] of Object.entries(output)) {
+          console.log("Output node", key);
+          const typedValue = value as any;
+
+          if (typedValue.messages && typedValue.messages.length > 0) {
+            finalResponse = typedValue.messages;
+          }
+
+          if (typedValue.orderState) {
+            finalOrderState = typedValue.orderState;
+          }
+        }
+      }
+
+
+      // Save the final order state
+      await this.conversationService.saveOrderState(sessionId, finalOrderState);
+
+      const formattedResponse = this.utilsService.formatAPIResponse(finalOrderState);
+      return {
+        messages: finalResponse,
+        orderState: finalOrderState,
+        formattedResponse: formattedResponse
+      };
+    } catch (error) {
+      console.error('Error in processOrderWithLocation:', error);
+      return {
+        messages: [new AIMessage("Sorry, there was an error processing your order. Please try again.")],
+        orderState: await this.conversationService.getOrderState(sessionId),
+        formattedResponse: null
+      };
+    }
+  }
+
+} 
