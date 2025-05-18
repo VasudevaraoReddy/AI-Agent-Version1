@@ -388,6 +388,141 @@
           }
         },
         "timestamp": "18/05/2025, 02:33:49 pm"
+      },
+      {
+        "role": "human",
+        "content": "I want to see the list of Lambda functions",
+        "timestamp": "18/05/2025, 02:49:10 pm"
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "role": "assistant",
+          "workflow": "listResources",
+          "response": {
+            "message": "I am sorry, I do not have access to your AWS account to list your Lambda functions. To view your Lambda functions, you will need to log in to the AWS Management Console and navigate to the Lambda service.",
+            "status": "failed",
+            "resources": [],
+            "customMessage": "I do not have access to your AWS account to list your Lambda functions. To view your Lambda functions, you will need to log in to the AWS Management Console and navigate to the Lambda service.",
+            "menu": [
+              "Provision or manage a Virtual Machine",
+              "Provision or manage a Load Balancer",
+              "Provision or manage a Database",
+              "Provision or manage a VPC",
+              "View AWS security groups",
+              "Ask general questions about AWS"
+            ]
+          }
+        },
+        "timestamp": "18/05/2025, 02:49:15 pm"
+      },
+      {
+        "role": "human",
+        "content": "I want to see the list of Databases",
+        "timestamp": "18/05/2025, 02:51:20 pm"
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "role": "assistant",
+          "workflow": "listResources",
+          "response": {
+            "message": "I'm sorry, I do not have access to your AWS account to list your databases.  To view your databases, you will need to log in to the AWS Management Console and navigate to the RDS (Relational Database Service) or other relevant database services.",
+            "status": "failed",
+            "resources": [],
+            "customMessage": "I do not have access to your AWS account to list your databases. To view your databases, you will need to log in to the AWS Management Console and navigate to the RDS (Relational Database Service) or other relevant database services.",
+            "menu": [
+              "Provision or manage a Virtual Machine",
+              "Provision or manage a Load Balancer",
+              "Provision or manage a Database",
+              "Provision or manage a VPC",
+              "View AWS security groups",
+              "Ask general questions about AWS"
+            ]
+          }
+        },
+        "timestamp": "18/05/2025, 02:51:25 pm"
+      },
+      {
+        "role": "human",
+        "content": "View AWS security groups",
+        "timestamp": "18/05/2025, 02:52:06 pm"
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "role": "assistant",
+          "workflow": "listResources",
+          "response": {
+            "message": "I'm sorry, I do not have access to your AWS account to view your security groups. To view your security groups, you will need to log in to the AWS Management Console and navigate to the EC2 service, then select Security Groups.",
+            "status": "failed",
+            "resources": [],
+            "customMessage": "I do not have access to your AWS account to view your security groups. To view your security groups, you will need to log in to the AWS Management Console and navigate to the EC2 service, then select Security Groups.",
+            "menu": [
+              "Provision or manage a Virtual Machine",
+              "Provision or manage a Load Balancer",
+              "Provision or manage a Database",
+              "Provision or manage a VPC",
+              "View AWS security groups",
+              "Ask general questions about AWS"
+            ]
+          }
+        },
+        "timestamp": "18/05/2025, 02:52:10 pm"
+      },
+      {
+        "role": "human",
+        "content": "Want to see the list of security group",
+        "timestamp": "18/05/2025, 02:52:33 pm"
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "role": "assistant",
+          "workflow": "listResources",
+          "response": {
+            "message": "I'm sorry, I do not have access to your AWS account to view your security groups. To view your security groups, you will need to log in to the AWS Management Console and navigate to the EC2 service, then select Security Groups.",
+            "status": "failed",
+            "resources": [],
+            "customMessage": "I do not have access to your AWS account to view your security groups. To view your security groups, you will need to log in to the AWS Management Console and navigate to the EC2 service, then select Security Groups.",
+            "menu": [
+              "Provision or manage a Virtual Machine",
+              "Provision or manage a Load Balancer",
+              "Provision or manage a Database",
+              "Provision or manage a VPC",
+              "View AWS security groups",
+              "Ask general questions about AWS"
+            ]
+          }
+        },
+        "timestamp": "18/05/2025, 02:52:38 pm"
+      },
+      {
+        "role": "human",
+        "content": "View AWS security groups",
+        "timestamp": "18/05/2025, 03:04:04 pm"
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "role": "assistant",
+          "workflow": "listResources",
+          "response": {
+            "message": "I'm sorry, I do not have access to your AWS account to view your security groups. To view your security groups, you will need to log in to the AWS Management Console and navigate to the EC2 service, then select Security Groups.",
+            "status": "failed",
+            "resources": [],
+            "customMessage": "I do not have access to your AWS account to view your security groups. To view your security groups, you will need to log in to the AWS Management Console and navigate to the EC2 service, then select Security Groups.",
+            "menu": [
+              "Provision or manage a Virtual Machine",
+              "Provision or manage a Load Balancer",
+              "Provision or manage a Database",
+              "Provision or manage a VPC",
+              "View AWS security groups",
+              "Ask general questions about AWS"
+            ]
+          }
+        },
+        "timestamp": "18/05/2025, 03:04:09 pm"
       }
     ]
   }
